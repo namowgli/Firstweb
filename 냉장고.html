@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>스마트 냉장고 & 김치냉장고 (용량·수량 관리)</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
+    body { font-family: 'Pretendard', sans-serif; }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800">
+
+  <!-- 상단 네비게이션 -->
+  <header class="bg-emerald-600 text-white shadow-md sticky top-0 z-50">
+    <div class="max-w-5xl mx-auto px-4 py-4 flex justify-between items-center">
+      <div class="flex items-center space-x-3">
+        <i class="fa-solid fa-snowflake text-2xl text-cyan-200"></i>
+        <h1 class="text-xl font-bold tracking-tight">우리집 스마트 냉장고</h1>
+      </div>
+      <div class="flex items-center gap-2">
+        <span class="text-xs bg-emerald-800 px-2.5 py-1 rounded-full text-emerald-200 flex items-center gap-1.5" id="sync-status">
+          <i class="fa-solid fa-rotate spin"></i> 동기화 중...
+        </span>
+        <span class="text-xs bg-emerald-700 px-3 py-1 rounded-full text-emerald-100" id="item-count">등록: 0개</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- 메인 컨테이너 -->
+  <main class="max-w-5xl mx-auto px-4 py-6 space-y-6">
+
+    <!-- 1. 식재료 등록 폼 -->
+    <section class="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
+      <h2 class="text-base font-bold text-slate-800 mb-4 flex items-center gap-2">
+        <i class="fa-solid fa-circle-plus text-emerald-600"></i> 새로운 식재료 추가하기
+      </h2>
+      <form id="item-form" onsubmit="addFridgeItem(event)" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-6 gap-3">
+        <!-- 이름 -->
+        <div class="md:col-span-2">
+          <label class="block text-xs font-semibold text-slate-500 mb-1">식재료 이름</label>
+          <input type="text" id="food-name" required placeholder="예: 배추김치, 삼겹살" class="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+        </div>
+        
+        <!-- 보관장소 -->
+        <div>
+          <label class="block text-xs font-semibold text-slate-500 mb-1">보관 장소</label>
+          <select id="food-storage" class="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+            <option value="냉장실">🧊 일반 냉장실</option>
+            <option value="김치냉장고">🥬 김치냉장고</option>
+            <option value="냉동실">❄️ 냉동실</option>
+            <option value="실온">🛒 실온/팬트리</option>
+          </select>
+        </div>
+
+        <!-- 수량/용량 + 단위 -->
+        <div class="md:col-span-2 grid grid-cols-2 gap-1.5">
+          <div>
+            <label class="block text-xs font-semibold text-slate-500 mb-1">수량/용량</label>
+            <input type="number" id="food-quantity" required step="any" min="0.1" value="1" placeholder="예: 500" class="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-500 mb-1">단위</label>
+            <select id="food-unit" class="w-full text-sm border border-slate-300 rounded-lg px-2 py-2 bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+              <option value="g">g (그램)</option>
+              <option value="kg">kg (키로그램)</option>
+              <option value="개">개</option>
+              <option value="인분">인분</option>
+              <option value="ml">ml</option>
+              <option value="L">L</option>
+              <option value="포기">포기</option>
+              <option value="팩">팩</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- 소비기한 -->
+        <div>
+          <label class="block text-xs font-semibold text-slate-500 mb-1">소비기한</label>
+          <input type="date" id="expire-date" required class="w-full text-sm border border-slate-300 rounded-lg px-2 py-2 focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+        </div>
+
+        <!-- 제출 버튼 -->
+        <div class="md:col-span-6 flex justify-end">
+          <button type="submit" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm px-6 py-2.5 rounded-lg transition flex items-center gap-1.5 shadow-sm">
+            <i class="fa-solid fa-cloud-arrow-up"></i> 식재료 등록하기
+          </button>
+        </div>
+      </form>
+    </section>
+
+    <!-- 2. 필터 및 검색 바 -->
+    <section class="flex flex-col sm:flex-row justify-between items-center gap-3">
+      <div class="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+        <button onclick="filterStorage('전체')" id="filter-btn-전체" class="filter-btn px-3.5 py-1.5 rounded-lg text-xs font-bold bg-emerald-600 text-white shadow-sm transition">전체보기</button>
+        <button onclick="filterStorage('냉장실')" id="filter-btn-냉장실" class="filter-btn px-3.5 py-1.5 rounded-lg text-xs font-bold bg-white text-slate-600 border border-slate-200 hover:bg-slate-100 transition">🧊 냉장실</button>
+        <button onclick="filterStorage('김치냉장고')" id="filter-btn-김치냉장고" class="filter-btn px-3.5 py-1.5 rounded-lg text-xs font-bold bg-white text-slate-600 border border-slate-200 hover:bg-slate-100 transition">🥬 김치냉장고</button>
+        <button onclick="filterStorage('냉동실')" id="filter-btn-냉동실" class="filter-btn px-3.5 py-1.5 rounded-lg text-xs font-bold bg-white text-slate-600 border border-slate-200 hover:bg-slate-100 transition">❄️ 냉동실</button>
+        <button onclick="filterStorage('실온')" id="filter-btn-실온" class="filter-btn px-3.5 py-1.5 rounded-lg text-xs font-bold bg-white text-slate-600 border border-slate-200 hover:bg-slate-100 transition">🛒 실온</button>
+      </div>
+      <div class="w-full sm:w-64">
+        <input type="text" id="search-input" onkeyup="renderFridgeItems()" placeholder="식재료 검색..." class="w-full text-xs border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+      </div>
+    </section>
+
+    <!-- 3. 식재료 카드 목록 -->
+    <section>
+      <div id="fridge-grid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+        <!-- 동적 생성 -->
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Firebase SDK -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+    import { getFirestore, collection, addDoc, deleteDoc, updateDoc, doc, onSnapshot, query, orderBy } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+    // ⚠️ 본인의 Firebase 키값으로 교체하세요
+    const firebaseConfig = {
+      apiKey: "YOUR_API_KEY",
+      authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+      projectId: "YOUR_PROJECT_ID",
+      storageBucket: "YOUR_PROJECT_ID.appspot.com",
+      messagingSenderId: "YOUR_SENDER_ID",
+      appId: "YOUR_APP_ID"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    const fridgeRef = collection(db, "fridge_items");
+
+    window.fridgeData = [];
+    window.currentFilter = '전체';
+
+    // 실시간 DB 수신
+    const q = query(fridgeRef, orderBy("expireDate", "asc"));
+    onSnapshot(q, (snapshot) => {
+      window.fridgeData = [];
+      snapshot.forEach((doc) => {
+        window.fridgeData.push({ id: doc.id, ...doc.data() });
+      });
+
+      const statusEl = document.getElementById('sync-status');
+      statusEl.innerHTML = '<i class="fa-solid fa-cloud-check text-emerald-300"></i> 실시간 연동됨';
+      renderFridgeItems();
+    }, (error) => {
+      console.error("실시간 동기화 오류:", error);
+      document.getElementById('sync-status').innerText = "연결 실패 (설정 확인)";
+    });
+
+    // 식재료 추가
+    window.addFridgeItem = async function(event) {
+      event.preventDefault();
+      const name = document.getElementById('food-name').value;
+      const storage = document.getElementById('food-storage').value;
+      const quantity = parseFloat(document.getElementById('food-quantity').value);
+      const unit = document.getElementById('food-unit').value;
+      const expireDate = document.getElementById('expire-date').value;
+      const todayStr = new Date().toISOString().split('T')[0];
+
+      try {
+        await addDoc(fridgeRef, {
+          name,
+          storage,
+          quantity,
+          unit,
+          purchaseDate: todayStr,
+          expireDate,
+          createdAt: Date.now()
+        });
+        document.getElementById('item-form').reset();
+      } catch (e) {
+        alert("저장 실패: " + e.message);
+      }
+    };
+
+    // 식재료 일부 차감/소비 함수
+    window.consumeItem = async function(id, currentQty, unit) {
+      const input = prompt(`[소비 차감] 사용할 양을 입력하세요 (${unit}):\n(현재 남은 양: ${currentQty}${unit})`, "1");
+      if (input === null) return;
+      
+      const consumeQty = parseFloat(input);
+      if (isNaN(consumeQty) || consumeQty <= 0) {
+        alert("올바른 숫자를 입력해주세요.");
+        return;
+      }
+
+      const newQty = Math.max(0, currentQty - consumeQty);
+
+      try {
+        if (newQty === 0) {
+          if (confirm(`수량이 0${unit}이 되어 목록에서 다 먹은 것으로 처리(삭제)합니다.`)) {
+            await deleteDoc(doc(db, "fridge_items", id));
+          }
+        } else {
+          // 남은 양 업데이트
+          await updateDoc(doc(db, "fridge_items", id), {
+            quantity: newQty
+          });
+        }
+      } catch (e) {
+        alert("업데이트 실패: " + e.message);
+      }
+    };
+
+    // 식재료 완전 삭제
+    window.deleteItem = async function(id) {
+      if (confirm("이 식재료를 목록에서 완전히 삭제하시겠습니까?")) {
+        try {
+          await deleteDoc(doc(db, "fridge_items", id));
+        } catch (e) {
+          alert("삭제 실패: " + e.message);
+        }
+      }
+    };
+  </script>
+
+  <!-- UI 렌더링 스크립트 -->
+  <script>
+    function filterStorage(storageType) {
+      window.currentFilter = storageType;
+      document.querySelectorAll('.filter-btn').forEach(btn => {
+        btn.className = "filter-btn px-3.5 py-1.5 rounded-lg text-xs font-bold bg-white text-slate-600 border border-slate-200 hover:bg-slate-100 transition";
+      });
+      document.getElementById(`filter-btn-${storageType}`).className = "filter-btn px-3.5 py-1.5 rounded-lg text-xs font-bold bg-emerald-600 text-white shadow-sm transition";
+      renderFridgeItems();
+    }
+
+    function calculateDDay(expireDateStr) {
+      const today = new Date();
+      today.setHours(0,0,0,0);
+      const expireDate = new Date(expireDateStr);
+      expireDate.setHours(0,0,0,0);
+
+      const diffTime = expireDate - today;
+      return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    }
+
+    function renderFridgeItems() {
+      const searchQuery = document.getElementById('search-input').value.toLowerCase();
+      const grid = document.getElementById('fridge-grid');
+      const data = window.fridgeData || [];
+
+      let filtered = data.filter(item => {
+        const matchesStorage = (window.currentFilter === '전체' || item.storage === window.currentFilter);
+        const matchesSearch = item.name.toLowerCase().includes(searchQuery);
+        return matchesStorage && matchesSearch;
+      });
+
+      document.getElementById('item-count').innerText = `등록: ${data.length}개`;
+
+      if (filtered.length === 0) {
+        grid.innerHTML = `<div class="col-span-full text-center py-12 text-slate-400 bg-white rounded-xl border border-slate-200">등록된 식재료가 없습니다.</div>`;
+        return;
+      }
+
+      grid.innerHTML = filtered.map(item => {
+        const dDay = calculateDDay(item.expireDate);
+        let badgeClass = "bg-emerald-100 text-emerald-800";
+        let dDayText = `D-${dDay}`;
+
+        if (dDay < 0) {
+          badgeClass = "bg-rose-100 text-rose-800 font-bold animate-pulse";
+          dDayText = `소비기한 ${Math.abs(dDay)}일 지남!`;
+        } else if (dDay === 0) {
+          badgeClass = "bg-amber-100 text-amber-800 font-bold";
+          dDayText = "오늘까지!";
+        } else if (dDay <= 3) {
+          badgeClass = "bg-orange-100 text-orange-800 font-bold";
+          dDayText = `D-${dDay} (임박)`;
+        }
+
+        return `
+          <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-col justify-between space-y-3 relative hover:shadow-md transition">
+            <div>
+              <div class="flex justify-between items-start mb-2">
+                <span class="text-xs px-2 py-0.5 rounded font-medium bg-slate-100 text-slate-600">${item.storage}</span>
+                <span class="px-2.5 py-1 rounded-full text-xs font-bold ${badgeClass}">${dDayText}</span>
+              </div>
+              <h3 class="font-bold text-base text-slate-800">${item.name}</h3>
+              
+              <!-- 잔여 수량 및 단위 강조 표시 -->
+              <div class="mt-2 bg-slate-50 border border-slate-100 p-2 rounded-lg flex justify-between items-center">
+                <span class="text-xs text-slate-500 font-medium">잔여 수량:</span>
+                <span class="text-sm font-extrabold text-emerald-700">${item.quantity} ${item.unit}</span>
+              </div>
+            </div>
+
+            <div class="text-xs text-slate-500 space-y-1 pt-2 border-t border-slate-100">
+              <p>소비기한: <span class="text-slate-700 font-semibold">${item.expireDate}</span></p>
+            </div>
+
+            <!-- 하단 소비차감 & 삭제 버튼 -->
+            <div class="flex items-center gap-2 pt-1">
+              <button onclick="consumeItem('${item.id}', ${item.quantity}, '${item.unit}')" class="flex-1 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold py-1.5 rounded-lg transition flex justify-center items-center gap-1">
+                <i class="fa-solid fa-utensils"></i> 소비 차감
+              </button>
+              <button onclick="deleteItem('${item.id}')" class="bg-slate-100 hover:bg-rose-100 hover:text-rose-600 text-slate-400 p-1.5 rounded-lg transition text-xs">
+                <i class="fa-solid fa-trash-can"></i>
+              </button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+  </script>
+</body>
+</html>
